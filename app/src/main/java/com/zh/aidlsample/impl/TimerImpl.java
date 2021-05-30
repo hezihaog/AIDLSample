@@ -1,17 +1,12 @@
-package com.zh.aidlsample.service;
+package com.zh.aidlsample.impl;
 
-import android.app.Service;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.zh.aidlsample.ITimer;
 import com.zh.aidlsample.TimerCallback;
@@ -20,7 +15,7 @@ import com.zh.aidlsample.TimerCallback;
  * @author wally
  * @date 2021/05/30
  */
-public class TimerService extends Service {
+public class TimerImpl extends ITimer.Stub {
     private static final int WHAT_COUNT_DOWN = 1;
 
     /**
@@ -37,8 +32,7 @@ public class TimerService extends Service {
     private Handler mTimerHandler;
 
     @Override
-    public void onCreate() {
-        super.onCreate();
+    public void startTimer() throws RemoteException {
         //开启具有Looper循环的线程
         mTimberHandlerThread = new HandlerThread("TimberHandlerThread");
         mTimberHandlerThread.start();
@@ -72,30 +66,21 @@ public class TimerService extends Service {
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
+    public void stopTimer() throws RemoteException {
         mTimberHandlerThread.quit();
     }
 
-    @Nullable
     @Override
-    public IBinder onBind(Intent intent) {
-        return new ServiceBinder();
+    public void registerCallback(TimerCallback callback) throws RemoteException {
+        if (callback != null) {
+            mCallbacks.register(callback);
+        }
     }
 
-    private class ServiceBinder extends ITimer.Stub {
-        @Override
-        public void registerCallback(TimerCallback callback) throws RemoteException {
-            if (callback != null) {
-                mCallbacks.register(callback);
-            }
-        }
-
-        @Override
-        public void unRegisterCallback(TimerCallback callback) throws RemoteException {
-            if (callback != null) {
-                mCallbacks.unregister(callback);
-            }
+    @Override
+    public void unRegisterCallback(TimerCallback callback) throws RemoteException {
+        if (callback != null) {
+            mCallbacks.unregister(callback);
         }
     }
 }

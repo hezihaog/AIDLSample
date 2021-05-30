@@ -1,14 +1,7 @@
 package com.zh.aidlsample;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.annotation.SuppressLint;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.View;
@@ -16,8 +9,9 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.zh.aidlsample.service.EncryptDecryptService;
-import com.zh.aidlsample.service.TimerService;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.zh.aidlsample.binder.BinderPool;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -26,40 +20,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
 
     private TextView vCurrentTime;
+    private Button vMd5Encrypt;
+    private Button vBase64Encrypt;
 
     private final ThreadLocal<SimpleDateFormat> mDateFormatThreadLocal = new ThreadLocal<>();
-
-    private IEncryptDecrypt mEncryptDecrypt;
     private ITimer mTimer;
-
-    private final ServiceConnection mEncryptDecryptServiceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mEncryptDecrypt = IEncryptDecrypt.Stub.asInterface(service);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mEncryptDecrypt = null;
-        }
-    };
-
-    private final ServiceConnection mTimberServiceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mTimer = ITimer.Stub.asInterface(service);
-            try {
-                mTimer.registerCallback(mTimerCallback);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mTimer = null;
-        }
-    };
+    private IEncryptDecrypt mDecrypt;
 
     private final TimerCallback mTimerCallback = new TimerCallback.Stub() {
         @SuppressLint({"SetTextI18n", "SimpleDateFormat"})
@@ -85,30 +51,38 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        findView();
+        bindView();
+        setData();
+    }
+
+    private void findView() {
         vCurrentTime = findViewById(R.id.current_time);
-        Button md5Encrypt = findViewById(R.id.md5_encrypt);
-        Button base64Encrypt = findViewById(R.id.base64_encrypt);
-        md5Encrypt.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mEncryptDecrypt != null) {
-                    try {
-                        String str = "hezihao";
-                        String md5Str = mEncryptDecrypt.md5Encrypt(str);
-                        Toast.makeText(getApplicationContext(), "md5后字符串：" + md5Str, Toast.LENGTH_SHORT).show();
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        });
-        base64Encrypt.setOnClickListener(new View.OnClickListener() {
+        vMd5Encrypt = findViewById(R.id.md5_encrypt);
+        vBase64Encrypt = findViewById(R.id.base64_encrypt);
+    }
+
+    private void bindView() {
+        //md5加密
+        vMd5Encrypt.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 try {
                     String str = "hezihao";
-                    String strBase64 = mEncryptDecrypt.base64Encode(str);
-                    String base64Decode = mEncryptDecrypt.base64Decode(strBase64);
+                    String md5Str = mDecrypt.md5Encrypt(str);
+                    Toast.makeText(getApplicationContext(), "md5后字符串：" + md5Str, Toast.LENGTH_SHORT).show();
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        vBase64Encrypt.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    String str = "hezihao";
+                    String strBase64 = mDecrypt.base64Encode(str);
+                    String base64Decode = mDecrypt.base64Decode(strBase64);
                     Toast.makeText(getApplicationContext(), "base64编码 =>" + strBase64 + "，base64解码 => " + base64Decode,
                             Toast.LENGTH_SHORT).show();
                 } catch (RemoteException e) {
@@ -116,10 +90,28 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-        //加密、解密
-        bindService(new Intent(getApplicationContext(), EncryptDecryptService.class), mEncryptDecryptServiceConnection, Context.BIND_AUTO_CREATE);
-        //定时器
-        bindService(new Intent(getApplicationContext(), TimerService.class), mTimberServiceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void setData() {
+        //使用BinderPool，必须开子线程，内部的CountDownLatch，会卡住线程，如果在主线程中调用，就会卡死主线程
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                BinderPool binderPool = BinderPool.getInstance(getApplicationContext());
+                mTimer = ITimer.Stub.asInterface(
+                        binderPool.queryBinder(BinderPool.BINDER_TIMER)
+                );
+                mDecrypt = IEncryptDecrypt.Stub.asInterface(
+                        binderPool.queryBinder(BinderPool.BINDER_ENCRYPT_DECRYPT)
+                );
+                try {
+                    mTimer.startTimer();
+                    mTimer.registerCallback(mTimerCallback);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 
     @Override
@@ -127,16 +119,11 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         try {
             if (mTimer != null && mTimer.asBinder().isBinderAlive()) {
+                mTimer.stopTimer();
                 mTimer.unRegisterCallback(mTimerCallback);
             }
         } catch (RemoteException e) {
             e.printStackTrace();
-        }
-        if (mEncryptDecryptServiceConnection != null) {
-            unbindService(mEncryptDecryptServiceConnection);
-        }
-        if (mTimberServiceConnection != null) {
-            unbindService(mTimberServiceConnection);
         }
     }
 }

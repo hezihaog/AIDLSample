@@ -18,9 +18,8 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".service.EncryptDecryptService" />
         <service
-            android:name=".service.TimerService"
-            android:process=":timer" />
+            android:name=".binder.BinderPoolService"
+            android:process=":remote" />
     </application>
 </manifest>
