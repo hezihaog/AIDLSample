@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/current_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:textColor="@android:color/black"
+        android:textSize="15sp"
+        tools:text="当前时间：2021-12-28" />
+
+    <Button
+        android:id="@+id/md5_encrypt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="MD5加密" />
+
+    <Button
+        android:id="@+id/base64_encrypt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Base64编码\解码" />
+</LinearLayout>
